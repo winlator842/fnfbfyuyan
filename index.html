@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BF语言翻译器</title>
+<title>BF语言翻译器 Pro</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body {
@@ -19,7 +19,14 @@ h1 {
   margin-bottom: 20px;
   font-size: 22px;
 }
-label { color: #aaa; font-size: 14px; display: block; margin-bottom: 8px; }
+.label-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+label { color: #aaa; font-size: 14px; }
+#charCount { color: #00d4ff; font-size: 12px; }
 textarea {
   width: 100%;
   background: #0f0f1a;
@@ -33,6 +40,12 @@ textarea {
 }
 #inputText { height: 100px; }
 #bfOutput { height: 120px; color: #00ff88; border-color: #00d4ff; }
+#englishPreview {
+  height: 50px;
+  color: #ffcc00;
+  border-color: #ffcc00;
+  font-size: 14px;
+}
 .buttons { display: flex; gap: 10px; }
 button {
   flex: 1;
@@ -64,19 +77,29 @@ button:active { transform: scale(0.95); }
   font-size: 14px;
   color: #888;
 }
-.mode-switch span {
-  color: #00d4ff;
-  font-weight: bold;
+.mode-switch span { color: #00d4ff; font-weight: bold; }
+.status {
+  text-align: center;
+  font-size: 12px;
+  color: #666;
+  margin-top: 10px;
+  height: 20px;
 }
 </style>
 </head>
 <body>
 <div class="container">
-  <h1>🎤 BF语言翻译器</h1>
+  <h1>🎤 BF语言翻译器 Pro</h1>
   <div class="mode-switch">中文 → English → <span>Beepspeak</span></div>
   
-  <label>输入中文：</label>
-  <textarea id="inputText" placeholder="比如：你好，今天心情怎么样？"></textarea>
+  <div class="label-row">
+    <label>输入中文：</label>
+    <span id="charCount">0 字</span>
+  </div>
+  <textarea id="inputText" placeholder="输入中文，比如：今天心情很好！"></textarea>
+  
+  <label>英文预览：</label>
+  <textarea id="englishPreview" readonly></textarea>
   
   <label>BF语言输出：</label>
   <textarea id="bfOutput" readonly placeholder="翻译结果会显示在这里..."></textarea>
@@ -86,111 +109,98 @@ button:active { transform: scale(0.95); }
     <button id="copyBtn" onclick="copyText()">📋 复制</button>
     <button id="clearBtn" onclick="clearAll()">清空</button>
   </div>
+  <div class="status" id="status"></div>
 </div>
 <script>
-// BF词汇表
+// BF核心词汇表
 const bfWords = {
-  // 肯定/积极
   'yes': 'beep', 'yeah': 'beep', 'ok': 'beep', 'okay': 'beep', 'good': 'beep boop', 'great': 'beep beep', 'nice': 'boop beep',
   'love': 'skdoo bep', 'like': 'beep bap', 'happy': 'boop beep bap', 'cool': 'skdoo',
-  // 否定/消极
   'no': 'boop', 'not': 'bap', "n't": 'bap', 'bad': 'boop bap', 'sad': 'bap boop', 'hate': 'bap bap',
   'angry': 'skdoo bap', 'wrong': 'bap beep', 'stop': 'bep bap',
-  // 疑问
   'what': 'boop beep', 'why': 'boop boop', 'how': 'beep boop beep', 'where': 'boop bap',
-  'who': 'bap boop beep', 'when': 'boop beep bap', '?': '?',
-  // 人称
+  'who': 'bap boop beep', 'when': 'boop beep bap', '?': '?', '!': '!',
   'i': 'beep', 'you': 'boop', 'he': 'bap', 'she': 'bap', 'it': 'beep bap',
   'me': 'beep', 'my': 'beep', 'your': 'boop', 'we': 'beep boop beep', 'they': 'bap bap beep',
-  // 动词
   'is': 'beep', 'are': 'boop', 'am': 'bap', 'was': 'beep boop', 'were': 'boop beep',
   'do': 'skdoo', 'did': 'skdoo beep', 'have': 'bep', 'has': 'bep beep', 'had': 'bep boop',
   'go': 'skdoo bep', 'went': 'skdoo bep beep', 'come': 'bep sky', 'want': 'beep sky',
-  'say': 'boop sky', 'tell': 'bap sky', 'know': 'beep know', 'think': 'boop think',
-  'see': 'skdoo see', 'look': 'bap look', 'play': 'skdoo play', 'eat': 'beep eat',
-  'make': 'boop make', 'get': 'bep get', 'give': 'skdoo give', 'take': 'bap take',
-  // 常用词
-  'the': 'be', 'a': 'b', 'an': 'b', 'this': 'beep boop', 'that': 'boop beep',
-  'here': 'bep here', 'there': 'bop there', 'now': 'beep now', 'then': 'boop then',
-  'and': '+', 'or': 'bap', 'but': 'skdoo', 'because': 'beep cause', 'so': 'bep so',
-  'if': 'beep if', 'when': 'boop when', 'time': 'bep time', 'day': 'beep day',
-  'today': 'beep day', 'hello': 'beep boop', 'hi': 'beep', 'bye': 'boop bep',
-  'thanks': 'skdoo bep', 'sorry': 'boop bap', 'please': 'beep please',
-  'friend': 'beep friend', 'people': 'bop people', 'thing': 'bep thing',
-  // 感叹/语气
-  '!': '!', 'wow': 'skdoo bep!', 'oh': 'boop!', 'ah': 'beep!',
-  'really': 'beep really', 'very': 'bep very', 'so': 'bep so', 'too': 'boop too'
+  'ice': 'beep boop', 'cold': 'boop bap', 'freeze': 'skdoo bep',
+  'hello': 'beep boop', 'hi': 'beep', 'bye': 'boop bep', 'thanks': 'skdoo bep', 'sorry': 'boop bap'
 };
 
-// 音节化函数：把英文拆成 beep/boop 音节
-function syllablize(word) {
-  if (word.length === 0) return '';
-  if (word.length <= 3) return Math.random() > 0.5 ? 'beep' : 'boop';
-  if (word.length <= 5) return 'beep boop';
-  if (word.length <= 7) return 'beep boop bap';
-  return 'skdoo bep ' + (Math.random() > 0.5 ? 'beep' : 'boop');
+// 音节划分（查词典API获取）
+async function getSyllables(word) {
+  try {
+    const res = await fetch(`https://api.freecoltdictionary.com/${word}`);
+    const data = await res.json();
+    if (data && data.length > 0 && data[0].phonetics) {
+      const phonetic = data.find(d => d.phonetics.some(p => p.text))?.phonetics.find(p => p.text)?.text;
+      if (phonetic) {
+        const syms = phonetic.match(/[aɪɛɔʊəː]/gi);
+        if (syms && syms.length > 0) return syms.length;
+      }
+    }
+  } catch (e) {}
+  return Math.ceil(word.length / 2);
 }
 
-// 英文转BF语言
-function englishToBF(text) {
-  const words = text.toLowerCase().split(/(\s+|[.,!?;:])/);
+async function syllablize(word) {
+  const num = await getSyllables(word);
+  const map = ['', 'beep', 'beep boop', 'beep boop bap', 'skdoo bep beep', 'skdoo bep boop bap'];
+  return map[Math.min(num, 5)] || 'skdoo bep boop bap';
+}
+
+async function englishToBF(text) {
+  const words = text.toLowerCase().split(/(\s+|[.,!?;:')-])/);
   let result = [];
-  
   for (let word of words) {
-    if (/^\s+$/.test(word) || /^[.,!?;:]+$/.test(word)) {
+    if (/^\s+$/.test(word) || /^[.,!?;:')-]+$/.test(word)) {
       if (word === '?') result.push('?');
       else if (word === '!') result.push('!');
-      else if (word === '.') result.push('bap');
       else result.push(word);
       continue;
     }
-    
-    // 查词汇表
-    if (bfWords[word]) {
-      result.push(bfWords[word]);
-    } else if (word.length > 0) {
-      // 不在词汇表里的词，音节化
-      result.push(syllablize(word.replace(/[^a-z]/g, '')));
+    const cleanWord = word.replace(/[^a-z]/g, '');
+    if (!cleanWord) continue;
+    if (bfWords[cleanWord]) {
+      result.push(bfWords[cleanWord]);
+    } else {
+      result.push(await syllablize(cleanWord));
     }
   }
-  
   return result.join(' ').replace(/\s+/g, ' ').trim();
 }
 
-// 主翻译函数（调用免费翻译API）
 async function translateToBF() {
   const chineseText = document.getElementById('inputText').value.trim();
   const outputBox = document.getElementById('bfOutput');
-  
+  const enBox = document.getElementById('englishPreview');
+  const statusEl = document.getElementById('status');
   if (!chineseText) {
     outputBox.value = '⚠️ 先输入中文再点翻译吧～';
     return;
   }
-  
   outputBox.value = '🔄 翻译中...';
-  
+  enBox.value = '';
+  statusEl.textContent = '📡 正在查词典，请稍候...';
   try {
-    // 调用免费翻译API（中文→英文）
     const translateRes = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(chineseText)}&langpair=zh|en`);
     const translateData = await translateRes.json();
     const englishText = translateData.responseData.translatedText;
-    
-    console.log('中文:', chineseText);
-    console.log('英文:', englishText);
-    
-    // 英文转BF语言
-    const bfText = englishToBF(englishText);
+    enBox.value = englishText;
+    const bfText = await englishToBF(englishText);
     outputBox.value = bfText;
-    
+    statusEl.textContent = '✅ 翻译完成！';
   } catch (error) {
-    console.error(error);
-    outputBox.value = '❌ 翻译出错了，检查一下网络连接再试试';
+    outputBox.value = '❌ 翻译出错了，检查网络再试试';
+    statusEl.textContent = '';
   }
 }
 
 function copyText() {
   const text = document.getElementById('bfOutput').value;
-  if (!text || text.startsWith('⚠️') || text.startsWith('❌') || text.includes('翻译中')) {
+  if (!text || text.includes('翻译中') || text.includes('⚠️') || text.includes('❌')) {
     alert('没有什么可复制的哦～');
     return;
   }
@@ -203,14 +213,16 @@ function copyText() {
 
 function clearAll() {
   document.getElementById('inputText').value = '';
+  document.getElementById('englishPreview').value = '';
   document.getElementById('bfOutput').value = '';
+  document.getElementById('status').textContent = '';
 }
 
-// 回车翻译（Ctrl+Enter）
+document.getElementById('inputText').addEventListener('input', function() {
+  document.getElementById('charCount').textContent = this.value.length + ' 字';
+});
 document.getElementById('inputText').addEventListener('keydown', function(e) {
-  if (e.ctrlKey && e.key === 'Enter') {
-    translateToBF();
-  }
+  if (e.ctrlKey && e.key === 'Enter') translateToBF();
 });
 </script>
 </body>
