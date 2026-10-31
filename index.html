@@ -14,7 +14,7 @@ body {
 }
 .container { max-width: 500px; margin: 0 auto; }
 h1 { color: #00d4ff; text-align: center; margin-bottom: 15px; font-size: 18px; }
-.api-status { text-align: center; font-size: 11px; color: #666; margin-bottom: 15px; }
+.api-status { text-align: center; font-size: 11px; color: #888; margin-bottom: 15px; }
 .api-status span { color: #00ff88; }
 label { color: #aaa; font-size: 13px; display: block; margin-bottom: 6px; }
 textarea {
@@ -45,7 +45,7 @@ button:active { transform: scale(0.95); }
 <body>
 <div class="container">
   <h1>🎤 BF翻译器 Pro Max版</h1>
-  <p class="api-status">数据源：<span>YesApi 免费拼音接口</span> · 无需注册 · 逐字精确映射</p>
+  <p class="api-status">离线版 · <span>无需网络</span> · 零跨域问题</p>
   
   <label>输入中文：</label>
   <textarea id="inputText" placeholder="牛逼克拉斯"></textarea>
@@ -63,8 +63,9 @@ button:active { transform: scale(0.95); }
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/pinyin-pro@3.22.3/dist/index.min.js"></script>
 <script>
-// ===== 你的咕咕嘎规则表（自由改这里）=====
+// ===== 咕咕嘎规则表（自由改）=====
 const bfMap = {
   'b': 'beep', 'p': 'bap', 'm': 'boop', 'f': 'bep',
   'd': 'skdoo', 't': 'ta', 'n': 'nu', 'l': 'la',
@@ -72,39 +73,22 @@ const bfMap = {
   'j': 'jit', 'q': 'que', 'x': 'shi',
   'zh': 'zhee', 'ch': 'chee', 'sh': 'shee', 'r': 'rrr',
   'z': 'zap', 'c': 'cee', 's': 'sss',
-  'y': 'yep', 'w': 'woo',
-  '': 'mm'
+  'y': 'yep', 'w': 'woo'
 };
 
-// 调用免费拼音API（无需注册）
-async function fetchPinyin(char) {
-  try {
-    const res = await fetch(`https://www.yesapi.net/api/app.php?s=App.Pinyin.Convert&text=${encodeURIComponent(char)}`);
-    const data = await res.json();
-    if (data && data.data && data.data.pinyin) {
-      return data.data.pinyin.toLowerCase().trim();
-    }
-  } catch (e) {}
-  // 降级：离线拼音库
-  if (window.pinyinPro) {
-    const { pinyin } = window.pinyinPro;
-    const result = pinyin(char, { type: 'array' });
-    return result[0] || char;
-  }
-  return char;
-}
-
 function pinyinToBF(py) {
+  // 去声调
   py = py.replace(/[āáǎàōóǒòēéěèīíǐìūúǔùǖǘǚǜ]/g, m => {
     const map = {ā:'a',á:'a',ǎ:'a',à:'a',ō:'o',ó:'o',ǒ:'o',ò:'o',ē:'e',é:'e',ě:'e',è:'e',ī:'i',í:'i',ǐ:'i',ì:'i',ū:'u',ú:'u',ǔ:'u',ù:'u',ǖ:'ü',ǘ:'ü',ǚ:'ü',ǜ:'u'};
     return map[m] || m;
   });
+  // 取声母
   const match = py.match(/^(zh|ch|sh|[bpmfdtnlgkhjqxzcsryw])/);
   const initial = match ? match[1] : '';
-  return bfMap[initial] || 'beep';
+  return bfMap[initial] || 'mm';
 }
 
-async function translate() {
+function translate() {
   const text = document.getElementById('inputText').value.trim();
   const detailBox = document.getElementById('detailBox');
   const outputBox = document.getElementById('bfOutput');
@@ -112,13 +96,15 @@ async function translate() {
     outputBox.value = '⚠️ 输入中文再点翻译～';
     return;
   }
-  detailBox.innerHTML = '📖 查拼音中...';
-  outputBox.value = '🔄 翻译中...';
+  
   const bfParts = [];
   const detailParts = [];
+  
   for (const char of text) {
     if (/[\u4e00-\u9fff]/.test(char)) {
-      const py = await fetchPinyin(char);
+      const { pinyin } = window.pinyinPro || window.PinyinPro;
+      const pyArr = pinyin(char, { type: 'array', toneType: 'none' });
+      const py = pyArr[0] || char;
       const bf = pinyinToBF(py);
       bfParts.push(bf);
       detailParts.push(`<span class="char-item"><span class="py">${char}(${py})</span> → <span class="bf">${bf}</span></span>`);
@@ -130,6 +116,7 @@ async function translate() {
       detailParts.push(`<span class="char-item">${char}</span>`);
     }
   }
+  
   detailBox.innerHTML = detailParts.join('');
   outputBox.value = bfParts.join(' , ');
 }
@@ -140,7 +127,7 @@ function copyText() {
     alert('没有什么可复制的～');
     return;
   }
-  navigator.clipboard.writeText(text).then(() => alert('已复制！')).catch(() => alert('复制失败，长按手动复制'));
+  navigator.clipboard.writeText(text).then(() => alert('已复制！')).catch(() => alert('长按输出框手动复制'));
 }
 
 function clearAll() {
@@ -148,7 +135,11 @@ function clearAll() {
   document.getElementById('detailBox').innerHTML = '点击翻译后显示详情...';
   document.getElementById('bfOutput').value = '';
 }
+
+// Ctrl+Enter 快捷翻译
+document.getElementById('inputText').addEventListener('keydown', function(e) {
+  if (e.ctrlKey && e.key === 'Enter') translate();
+});
 </script>
-<script src="https://cdn.jsdelivr.net/npm/pinyin-pro@3.19.0/dist/index.js"></script>
 </body>
 </html>
